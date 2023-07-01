@@ -47,6 +47,8 @@
 #endif /* USE_EXT_GPIO */
 
 extern struct completion *gl_bootup_cplx; 
+//超时检测ban
+extern struct task_struct *sif_irq_thread;
 
 static int old_signal = -35;
 static int avg_signal = 0;
@@ -2201,17 +2203,24 @@ sip_poll_bootup_event(struct esp_sip *sip)
         esp_dbg(ESP_DBG_TRACE, "polling bootup event... \n");
 
 	if (gl_bootup_cplx)
-		ret = wait_for_completion_timeout(gl_bootup_cplx, 2 * HZ);
+                //2*HZ->10*HZ
+		ret = wait_for_completion_timeout(gl_bootup_cplx, 10 * HZ);
 
 	esp_dbg(ESP_DBG_TRACE, "******time remain****** = [%d]\n", ret);
 	if (ret <= 0) {
 		esp_dbg(ESP_DBG_ERROR, "bootup event timeout\n");
-		return -ETIMEDOUT;
+		//禁用超时检测
+                //return -ETIMEDOUT;
+                sip->epub->wait_reset = 0;
+                wake_up_process(sif_irq_thread);
+                esp_dbg(ESP_DBG_ERROR, "for unknow reason,we may not be informed the boot/rst complete event, assume it completed and continue here\n");
+                msleep(50);
 	}	
 
 	if(sif_get_ate_config() == 0){
 		ret = esp_register_mac80211(sip->epub);
 	}
+
 
 #ifdef TEST_MODE
         ret = test_init_netlink(sip);
@@ -2224,7 +2233,8 @@ sip_poll_bootup_event(struct esp_sip *sip)
 	atomic_set(&sip->state, SIP_RUN);
         esp_dbg(ESP_DBG_TRACE, "target booted up\n");
 
-	return ret;
+        return ret;
+
 }
 
 int
@@ -2240,7 +2250,12 @@ sip_poll_resetting_event(struct esp_sip *sip)
 	esp_dbg(ESP_DBG_TRACE, "******time remain****** = [%d]\n", ret);
 	if (ret <= 0) {
 		esp_dbg(ESP_DBG_ERROR, "resetting event timeout\n");
-		return -ETIMEDOUT;
+		//禁用超时检测
+                //return -ETIMEDOUT;
+                sip->epub->wait_reset = 0;
+                wake_up_process(sif_irq_thread);
+                esp_dbg(ESP_DBG_ERROR, "for unknow reason,we may not be informed the boot/rst complete event, assume it completed and continue here\n");
+                msleep(50);
 	}	
       
         esp_dbg(ESP_DBG_TRACE, "target resetting %d %p\n", ret, gl_bootup_cplx);

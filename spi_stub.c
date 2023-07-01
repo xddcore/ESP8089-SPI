@@ -3,9 +3,9 @@
 
 /* https://www.signal.com.tr/pdf/cat/8n-esp8266_spi_reference_en_v1.0.pdf */
 
-#define SPI_FREQ (10000000)
+//#define SPI_FREQ (10000000)
 //#define SPI_FREQ (20000000)                             //  1. 22.5Mhz     2. 45Mhz
-//#define SPI_FREQ (30000000)                             //  1. 22.5Mhz     2. 45Mhz
+#define SPI_FREQ (30000000)                             //  1. 22.5Mhz     2. 45Mhz
 
 //Below are for spi HZ 22.5M
 #if (SPI_FREQ == 30000000)
@@ -94,7 +94,7 @@ struct spi_device_id esp_spi_id[] = {
 };
 MODULE_DEVICE_TABLE(spi, esp_spi_id);
 
-static int esp_cs0_pin = 16;
+static int esp_cs0_pin = 65; //PC1 2*32+1
 module_param(esp_cs0_pin, int, 0);
 MODULE_PARM_DESC(esp_cs0_pin, "SPI chip select zero");
 
@@ -109,9 +109,9 @@ static struct spi_board_info esp_board_spi_devices[] = {
   {
     .modalias = "ESP8089_0",
     .max_speed_hz = MAX_SPEED_HZ,
-    .bus_num = 1,
+    .bus_num = 0, //use spi 0 bus
     .chip_select = 0,
-    .mode = 0,
+    .mode = 3,
   },
 };
 
@@ -120,6 +120,9 @@ void sif_platform_register_board_info(void) {
 }
 
 struct spi_device* sif_platform_new_device(void) {
+  //使CS引脚接地
+  gpio_request(esp_cs0_pin, "esp_cs0_gpio");
+  gpio_direction_output(esp_cs0_pin, 0);
   master = spi_busnum_to_master(esp_board_spi_devices[0].bus_num);
   if(!master)
     printk("esp8089_spi: FAILED to find master\n");
@@ -128,13 +131,14 @@ struct spi_device* sif_platform_new_device(void) {
     printk("esp8089_spi: FAILED to create slave\n");
   if(spi_setup(spi))
     printk("esp8089_spi: FAILED to setup slave\n");
+  printk("esp8089_spi: Success find master and  setup slave\n");
   return spi;
 }
 #endif
 
 /* *** *** Interrupt *** *** */
 
-static int esp_interrupt = 26;
+static int esp_interrupt = 96;//PD0 = 32*3+0=96
 module_param(esp_interrupt, int, 0);
 MODULE_PARM_DESC(esp_interrupt, "Interrupt pin");
 
@@ -214,7 +218,7 @@ SDIO:
   GPIO11  SDCMD
 */
 
-static int esp_reset_gpio = 13;
+static int esp_reset_gpio = 97; //PD1 3*32+1=96+1
 module_param(esp_reset_gpio, int, 0);
 MODULE_PARM_DESC(esp_reset_gpio, "ESP8089 CHIP_EN GPIO number");
 
